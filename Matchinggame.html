@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Summary Matching Activity</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    #card-container {
+      position: relative;
+      width: 100%;
+      min-height: 100vh;
+      background: #f0f0f0;
+      box-sizing: border-box;
+    }
+    .column {
+      position: absolute;
+      top: 10px;
+      width: 33.33%;
+      text-align: center;
+      font-family: Arial, sans-serif;
+      font-size: 24px;
+      font-weight: bold;
+      color: #333;
+    }
+    #intro-column { left: 0; }
+    #body-column { left: 33.33%; }
+    #conclusion-column { left: 66.66%; }
+    .card {
+      position: absolute;
+      width: 250px;
+      padding: 10px;
+      box-sizing: border-box;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      cursor: move;
+      font-family: Arial, sans-serif;
+      user-select: none;
+      touch-action: none; /* Prevents default touch behaviors */
+    }
+    .yellow {
+      background-color: #ffffcc;
+    }
+    .blue {
+      background-color: #add8e6;
+    }
+    .matched {
+      background-color: #90ee90;
+    }
+    .summary-part {
+      font-size: small;
+      pointer-events: none; /* Prevents text from capturing events */
+    }
+    .example {
+      font-size: large;
+      font-weight: bold;
+      pointer-events: none; /* Prevents text from capturing events */
+    }
+    .message {
+      position: absolute;
+      background: white;
+      border: 1px solid black;
+      padding: 5px;
+      z-index: 100;
+      transform: translate(-50%, -50%);
+      user-select: none;
+    }
+    @media (max-width: 768px) {
+      .card {
+        width: 200px;
+      }
+      .column {
+        font-size: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="card-container">
+    <div class="column" id="intro-column">Introduction</div>
+    <div class="column" id="body-column">Body text</div>
+    <div class="column" id="conclusion-column">Concluding sentence</div>
+    <!-- Cards will be added here by JavaScript -->
+  </div>
+  <script>
+    const summaryParts = [
+      "Author(s) name",
+      "Title/source/date",
+      "Main idea",
+      "Supporting idea 1",
+      "Supporting idea 2",
+      "Supporting idea 3",
+      "Restates the main idea"
+    ];
+
+    const examples = [
+      "Scott Simon’s",
+      "April 27, 2024 article, “Opinion: We do anything to make our kids smile” from NPR explains that",
+      "spending time with children helps parents create a special bond and learn valuable lessons from them.",
+      "First, as children grow, they may not remember how their parents played with them, but they will share a strong bond.",
+      "Next, as the children grow up, they will learn new things that they can teach to their parents.",
+      "Finally, Children will become more independent, but they will remember the time their parents spent with them and maintain a strong relationship.",
+      "Therefore, the time spent with children when they are young will help keep a good relationship and benefit both the children and their parents."
+    ];
+
+    const container = document.getElementById('card-container');
+    const cardWidth = 250;
+    const cardHeight = 50; // Approximate height for placement
+    const margin = 10; // Space between cards
+    const usedPositions = [];
+
+    function getNonOverlappingPosition() {
+      const containerRect = container.getBoundingClientRect();
+      const maxX = containerRect.width - cardWidth;
+      const maxY = containerRect.height - cardHeight;
+      const minY = 40; // Avoid overlap with headers
+      let x, y, attempts = 0, maxAttempts = 50;
+      let isOverlapping;
+
+      do {
+        x = margin + Math.random() * (maxX - 2 * margin);
+        y = minY + Math.random() * (maxY - minY - margin);
+        isOverlapping = usedPositions.some(pos => {
+          return Math.abs(pos.x - x) < cardWidth + margin &&
+                 Math.abs(pos.y - y) < cardHeight + margin;
+        });
+        attempts++;
+      } while (isOverlapping && attempts < maxAttempts);
+
+      if (attempts >= maxAttempts) {
+        // Fallback to grid-like placement if random fails
+        const row = Math.floor(usedPositions.length / 3);
+        const col = usedPositions.length % 3;
+        x = margin + col * (cardWidth + margin);
+        y = minY + row * (cardHeight + margin);
+      }
+
+      usedPositions.push({ x, y });
+      return { x, y };
+    }
+
+    summaryParts.forEach((part, index) => {
+      const yellowCard = document.createElement('div');
+      yellowCard.className = 'card yellow';
+      yellowCard.textContent = part;
+      yellowCard.dataset.pair = index;
+      const { x, y } = getNonOverlappingPosition();
+      yellowCard.style.left = `${x}px`;
+      yellowCard.style.top = `${y}px`;
+      container.appendChild(yellowCard);
+    });
+
+    examples.forEach((example, index) => {
+      const blueCard = document.createElement('div');
+      blueCard.className = 'card blue';
+      blueCard.textContent = example;
+      blueCard.dataset.pair = index;
+      const { x, y } = getNonOverlappingPosition();
+      blueCard.style.left = `${x}px`;
+      blueCard.style.top = `${y}px`;
+      container.appendChild(blueCard);
+    });
+
+    let draggingCard = null;
+    let offsetX, offsetY;
+
+    function startDrag(e) {
+      if (e.target.classList.contains('card')) {
+        draggingCard = e.target;
+        const rect = draggingCard.getBoundingClientRect();
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        offsetX = clientX - rect.left;
+        offsetY = clientY - rect.top;
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('touchmove', drag, { passive: false });
+        document.addEventListener('mouseup', stopDrag);
+        document.addEventListener('touchend', stopDrag);
+      }
+    }
+
+    function drag(e) {
+      if (draggingCard) {
+        e.preventDefault(); // Prevent scrolling on touch
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        draggingCard.style.left = `${clientX - offsetX}px`;
+        draggingCard.style.top = `${clientY - offsetY}px`;
+      }
+    }
+
+    function stopDrag(e) {
+      if (draggingCard) {
+        if (draggingCard.classList.contains('yellow') || draggingCard.classList.contains('blue')) {
+          checkMatch(draggingCard);
+        }
+        draggingCard = null;
+        document.removeEventListener('mousemove', drag);
+        document.removeEventListener('touchmove', drag);
+        document.removeEventListener('mouseup', stopDrag);
+        document.removeEventListener('touchend', stopDrag);
+      }
+    }
+
+    function checkMatch(draggedCard) {
+      const draggedRect = draggedCard.getBoundingClientRect();
+      const isYellow = draggedCard.classList.contains('yellow');
+      const targetCards = document.querySelectorAll(isYellow ? '.card.blue, .card.matched' : '.card.yellow');
+      let maxOverlap = 0;
+      let targetCard = null;
+
+      targetCards.forEach(card => {
+        const cardRect = card.getBoundingClientRect();
+        const overlapWidth = Math.min(draggedRect.right, cardRect.right) - Math.max(draggedRect.left, cardRect.left);
+        const overlapHeight = Math.min(draggedRect.bottom, cardRect.bottom) - Math.max(draggedRect.top, cardRect.top);
+        if (overlapWidth > 0 && overlapHeight > 0) {
+          const overlapArea = overlapWidth * overlapHeight;
+          if (overlapArea > maxOverlap) {
+            maxOverlap = overlapArea;
+            targetCard = card;
+          }
+        }
+      });
+
+      if (targetCard) {
+        if (draggedCard.dataset.pair === targetCard.dataset.pair) {
+          showMessage('✔ Correct!', targetCard);
+          transformCard(isYellow ? draggedCard : targetCard, isYellow ? targetCard : draggedCard);
+        } else {
+          showMessage('✘ Try Again', targetCard);
+        }
+      }
+    }
+
+    function showMessage(text, nearCard) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'message';
+      messageDiv.textContent = text;
+      const rect = nearCard.getBoundingClientRect();
+      messageDiv.style.left = `${rect.left + rect.width / 2}px`;
+      messageDiv.style.top = `${rect.top + rect.height / 2}px`;
+      document.body.appendChild(messageDiv);
+      setTimeout(() => {
+        messageDiv.remove();
+      }, 1000);
+    }
+
+    function transformCard(yellowCard, blueCard) {
+      yellowCard.remove();
+      blueCard.classList.remove('blue');
+      blueCard.classList.add('matched');
+      const summaryText = summaryParts[parseInt(yellowCard.dataset.pair)];
+      const exampleText = examples[parseInt(blueCard.dataset.pair)];
+      blueCard.innerHTML = `<span class="summary-part">${summaryText}</span><br><span class="example">${exampleText}</span>`;
+    }
+
+    container.addEventListener('mousedown', startDrag);
+    container.addEventListener('touchstart', startDrag, { passive: false });
+  </script>
+</body>
+</html>
